@@ -12,6 +12,7 @@ const cardGrid = document.querySelector("#cardGrid");
 const emptyState = document.querySelector("#emptyState");
 const searchInput = document.querySelector("#searchInput");
 const shinyFilter = document.querySelector("#shinyFilter");
+const sortSelect = document.querySelector("#sortSelect");
 const pokemonDialog = document.querySelector("#pokemonDialog");
 const deleteDialog = document.querySelector("#deleteDialog");
 const form = document.querySelector("#pokemonForm");
@@ -41,6 +42,10 @@ function render() {
     const text = `${pokemon.name} ${pokemon.nickname}`.toLowerCase();
     return text.includes(query) && (!shinyOnly || pokemon.shiny);
   });
+
+  if (sortSelect.value === "name") results.sort((a, b) => a.name.localeCompare(b.name));
+  if (sortSelect.value === "level-high") results.sort((a, b) => b.level - a.level);
+  if (sortSelect.value === "dex") results.sort((a, b) => a.dex - b.dex);
 
   document.querySelector("#totalCount").textContent = collection.length;
   document.querySelector("#shinyCount").textContent = collection.filter(p => p.shiny).length;
@@ -100,6 +105,14 @@ document.querySelector("#cancelButton").addEventListener("click", () => pokemonD
 document.querySelector("#cancelDeleteButton").addEventListener("click", () => deleteDialog.close());
 searchInput.addEventListener("input", render);
 shinyFilter.addEventListener("change", render);
+sortSelect.addEventListener("change", render);
+document.querySelector("#resetFiltersButton").addEventListener("click", () => {
+  searchInput.value = "";
+  shinyFilter.checked = false;
+  sortSelect.value = "added";
+  render();
+  searchInput.focus();
+});
 
 cardGrid.addEventListener("click", event => {
   const button = event.target.closest("button[data-action]");

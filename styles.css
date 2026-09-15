@@ -16,7 +16,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; background: var(--background); }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 
 .site-header { background: var(--blue); color: white; }
@@ -45,10 +45,15 @@ h2 { margin-bottom: 8px; }
 .stats span { display: block; font-size: 1.65rem; font-weight: 700; color: var(--blue); }
 .stats p { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
 
-.toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; margin-bottom: 10px; }
+.toolbar { display: grid; grid-template-columns: minmax(260px, 1fr) auto auto auto; gap: 12px; margin-bottom: 10px; }
 .search-field input { width: 100%; min-height: 46px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 7px; background: white; }
 .check-field { min-height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 15px; border: 1px solid var(--line); border-radius: 7px; background: white; }
 .check-field input, .shiny-switch input { width: 18px; height: 18px; accent-color: var(--blue); }
+.sort-field { min-height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--muted); }
+.sort-field span { font-size: .82rem; white-space: nowrap; }
+.sort-field select { border: 0; color: var(--ink); background: white; }
+.reset-button { min-height: 46px; padding: 0 14px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--blue); font-weight: 700; }
+.reset-button:hover { background: #eef3fb; }
 .result-message { min-height: 20px; color: var(--muted); font-size: .88rem; }
 
 .card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -96,6 +101,8 @@ dialog::backdrop { background: rgba(15, 23, 42, .58); }
   nav { gap: 14px; font-size: .9rem; }
   .stats { grid-template-columns: 1fr; }
   .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .toolbar { grid-template-columns: 1fr 1fr; }
+  .search-field { grid-column: 1 / -1; }
 }
 
 @media (max-width: 560px) {
@@ -105,7 +112,9 @@ dialog::backdrop { background: rgba(15, 23, 42, .58); }
   .page-heading { display: block; }
   .desktop-add { margin-top: 20px; width: 100%; }
   .toolbar, .form-grid, .card-grid { grid-template-columns: 1fr; }
+  .search-field { grid-column: auto; }
   .check-field { justify-content: center; }
+  .sort-field { justify-content: center; }
   #pokemonForm { padding: 20px; }
   .form-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .toast { right: 16px; left: 16px; bottom: 16px; text-align: center; }
