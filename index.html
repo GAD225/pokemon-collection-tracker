@@ -13,7 +13,7 @@
       <a class="brand" href="#collection">Pokémon Collection Tracker</a>
       <nav aria-label="Main navigation">
         <a href="#collection">My Collection</a>
-        <a href="#collectionStats">Statistics</a>
+        <a href="#collectionInsights">Statistics</a>
         <button class="nav-button" id="openAddButton" type="button">Add Pokémon</button>
       </nav>
     </div>
@@ -35,6 +35,21 @@
       <article><span id="gameCount">2</span><p>Games represented</p></article>
     </section>
 
+    <section id="collectionInsights" class="insights" aria-labelledby="insightsTitle">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">COLLECTION INSIGHTS</p>
+          <h2 id="insightsTitle">A closer look at the collection</h2>
+        </div>
+        <p>These statistics update automatically whenever a Pokémon is added, edited, or deleted.</p>
+      </div>
+      <div class="insight-grid">
+        <article><span id="averageLevel">0</span><p>Average level</p></article>
+        <article><span id="highestLevel">0</span><p>Highest level</p></article>
+        <article><span id="topGame">None</span><p>Most represented game</p></article>
+      </div>
+    </section>
+
     <section class="toolbar" aria-label="Search and filter collection">
       <label class="search-field">
         <span class="sr-only">Search Pokémon</span>
@@ -51,6 +66,12 @@
           <option value="name">Name A-Z</option>
           <option value="level-high">Highest level</option>
           <option value="dex">Pokédex number</option>
+        </select>
+      </label>
+      <label class="game-field">
+        <span>Game</span>
+        <select id="gameFilter">
+          <option value="">All games</option>
         </select>
       </label>
       <button class="reset-button" id="resetFiltersButton" type="button">Reset filters</button>
