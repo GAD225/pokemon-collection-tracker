@@ -13,6 +13,7 @@ const emptyState = document.querySelector("#emptyState");
 const searchInput = document.querySelector("#searchInput");
 const shinyFilter = document.querySelector("#shinyFilter");
 const sortSelect = document.querySelector("#sortSelect");
+const gameFilter = document.querySelector("#gameFilter");
 const pokemonDialog = document.querySelector("#pokemonDialog");
 const deleteDialog = document.querySelector("#deleteDialog");
 const form = document.querySelector("#pokemonForm");
@@ -35,12 +36,40 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
 }
 
+function updateGameOptions() {
+  const selectedGame = gameFilter.value;
+  const games = [...new Set(collection.map(pokemon => pokemon.game.trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  gameFilter.innerHTML = '<option value="">All games</option>' + games
+    .map(game => `<option value="${escapeHtml(game.toLowerCase())}">${escapeHtml(game)}</option>`)
+    .join("");
+  if (games.some(game => game.toLowerCase() === selectedGame)) gameFilter.value = selectedGame;
+}
+
+function updateInsights() {
+  const levels = collection.map(pokemon => Number(pokemon.level) || 0);
+  const gameTotals = collection.reduce((totals, pokemon) => {
+    const game = pokemon.game.trim() || "Not listed";
+    totals[game] = (totals[game] || 0) + 1;
+    return totals;
+  }, {});
+  const topGame = Object.entries(gameTotals).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || "None";
+  const average = levels.length ? Math.round(levels.reduce((sum, level) => sum + level, 0) / levels.length) : 0;
+
+  document.querySelector("#averageLevel").textContent = average;
+  document.querySelector("#highestLevel").textContent = levels.length ? Math.max(...levels) : 0;
+  document.querySelector("#topGame").textContent = topGame;
+}
+
 function render() {
+  updateGameOptions();
   const query = searchInput.value.trim().toLowerCase();
   const shinyOnly = shinyFilter.checked;
+  const selectedGame = gameFilter.value;
   const results = collection.filter(pokemon => {
     const text = `${pokemon.name} ${pokemon.nickname}`.toLowerCase();
-    return text.includes(query) && (!shinyOnly || pokemon.shiny);
+    const matchesGame = !selectedGame || pokemon.game.toLowerCase() === selectedGame;
+    return text.includes(query) && matchesGame && (!shinyOnly || pokemon.shiny);
   });
 
   if (sortSelect.value === "name") results.sort((a, b) => a.name.localeCompare(b.name));
@@ -50,6 +79,7 @@ function render() {
   document.querySelector("#totalCount").textContent = collection.length;
   document.querySelector("#shinyCount").textContent = collection.filter(p => p.shiny).length;
   document.querySelector("#gameCount").textContent = new Set(collection.map(p => p.game.toLowerCase())).size;
+  updateInsights();
   document.querySelector("#resultMessage").textContent = `${results.length} ${results.length === 1 ? "entry" : "entries"} shown`;
 
   cardGrid.innerHTML = results.map(pokemon => `
@@ -106,10 +136,12 @@ document.querySelector("#cancelDeleteButton").addEventListener("click", () => de
 searchInput.addEventListener("input", render);
 shinyFilter.addEventListener("change", render);
 sortSelect.addEventListener("change", render);
+gameFilter.addEventListener("change", render);
 document.querySelector("#resetFiltersButton").addEventListener("click", () => {
   searchInput.value = "";
   shinyFilter.checked = false;
   sortSelect.value = "added";
+  gameFilter.value = "";
   render();
   searchInput.focus();
 });
