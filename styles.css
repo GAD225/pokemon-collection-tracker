@@ -67,6 +67,11 @@ h2 { margin-bottom: 8px; }
 .reset-button { min-height: 46px; padding: 0 14px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--blue); font-weight: 700; }
 .reset-button:hover { background: #eef3fb; }
 .result-message { min-height: 20px; color: var(--muted); font-size: .88rem; }
+.results-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 18px; }
+.result-message { margin: 0; }
+.export-button { min-height: 42px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--blue); font-weight: 700; }
+.export-button:hover { background: #eef3fb; }
+.export-button:disabled { opacity: .55; cursor: not-allowed; }
 
 .card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .pokemon-card { background: white; border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: flex; flex-direction: column; min-height: 230px; }
@@ -134,4 +139,6 @@ dialog::backdrop { background: rgba(15, 23, 42, .58); }
   #pokemonForm { padding: 20px; }
   .form-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .toast { right: 16px; left: 16px; bottom: 16px; text-align: center; }
+  .results-row { align-items: stretch; flex-direction: column; }
+  .export-button { width: 100%; }
 }
