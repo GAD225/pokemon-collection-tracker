@@ -5,6 +5,7 @@ const starterPokemon = [
 ];
 
 const storageKey = "pokemon-collection-tracker-v1";
+const gameKey = game => String(game ?? "").replace(/\s+/g, "").toLocaleLowerCase();
 let collection = loadCollection();
 let pendingDeleteId = null;
 
@@ -36,24 +37,36 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
 }
 
+function gameNames() {
+  const games = new Map(starterPokemon.map(pokemon => [gameKey(pokemon.game), pokemon.game]));
+  collection.forEach(pokemon => {
+    const name = String(pokemon.game ?? "").trim().replace(/\s+/g, " ");
+    if (name && !games.has(gameKey(name))) games.set(gameKey(name), name);
+  });
+  return games;
+}
+
 function updateGameOptions() {
   const selectedGame = gameFilter.value;
-  const games = [...new Set(collection.map(pokemon => pokemon.game.trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b));
+  const names = gameNames();
+  const games = [...new Set(collection.map(pokemon => gameKey(pokemon.game)).filter(Boolean))]
+    .map(key => names.get(key)).sort((a, b) => a.localeCompare(b));
   gameFilter.innerHTML = '<option value="">All games</option>' + games
-    .map(game => `<option value="${escapeHtml(game.toLowerCase())}">${escapeHtml(game)}</option>`)
+    .map(game => `<option value="${escapeHtml(gameKey(game))}">${escapeHtml(game)}</option>`)
     .join("");
-  if (games.some(game => game.toLowerCase() === selectedGame)) gameFilter.value = selectedGame;
+  if (games.some(game => gameKey(game) === selectedGame)) gameFilter.value = selectedGame;
 }
 
 function updateInsights() {
   const levels = collection.map(pokemon => Number(pokemon.level) || 0);
+  const names = gameNames();
   const gameTotals = collection.reduce((totals, pokemon) => {
-    const game = pokemon.game.trim() || "Not listed";
-    totals[game] = (totals[game] || 0) + 1;
+    const game = gameKey(pokemon.game);
+    totals.set(game, (totals.get(game) || 0) + 1);
     return totals;
-  }, {});
-  const topGame = Object.entries(gameTotals).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || "None";
+  }, new Map());
+  const topKey = [...gameTotals].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+  const topGame = topKey ? names.get(topKey) || "Not listed" : "None";
   const average = levels.length ? Math.round(levels.reduce((sum, level) => sum + level, 0) / levels.length) : 0;
 
   document.querySelector("#averageLevel").textContent = average;
@@ -68,7 +81,7 @@ function render() {
   const selectedGame = gameFilter.value;
   const results = collection.filter(pokemon => {
     const text = `${pokemon.name} ${pokemon.nickname}`.toLowerCase();
-    const matchesGame = !selectedGame || pokemon.game.toLowerCase() === selectedGame;
+    const matchesGame = !selectedGame || gameKey(pokemon.game) === selectedGame;
     return text.includes(query) && matchesGame && (!shinyOnly || pokemon.shiny);
   });
 
@@ -78,7 +91,8 @@ function render() {
 
   document.querySelector("#totalCount").textContent = collection.length;
   document.querySelector("#shinyCount").textContent = collection.filter(p => p.shiny).length;
-  document.querySelector("#gameCount").textContent = new Set(collection.map(p => p.game.toLowerCase())).size;
+  document.querySelector("#gameCount").textContent = new Set(collection.map(p => gameKey(p.game)).filter(Boolean)).size;
+  document.querySelector("#exportButton").disabled = collection.length === 0;
   updateInsights();
   document.querySelector("#resultMessage").textContent = `${results.length} ${results.length === 1 ? "entry" : "entries"} shown`;
 
@@ -129,6 +143,28 @@ function showToast(message) {
   window.setTimeout(() => toast.classList.remove("show"), 2200);
 }
 
+function csvCell(value) {
+  let text = String(value ?? "");
+  if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function exportCollection() {
+  const columns = ["Name", "Pokedex number", "Game", "Level", "Nickname", "Nature", "Shiny", "Notes"];
+  const rows = collection.map(pokemon => [pokemon.name, pokemon.dex, pokemon.game, pokemon.level,
+    pokemon.nickname, pokemon.nature, pokemon.shiny ? "Yes" : "No", pokemon.notes]);
+  const csv = "\uFEFF" + [columns, ...rows].map(row => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "pokemon-collection.csv";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast("Collection exported");
+}
+
 document.querySelectorAll("#openAddButton, #openAddButtonTop, #emptyAddButton").forEach(button => button.addEventListener("click", () => openForm()));
 document.querySelector("#closeDialogButton").addEventListener("click", () => pokemonDialog.close());
 document.querySelector("#cancelButton").addEventListener("click", () => pokemonDialog.close());
@@ -137,6 +173,7 @@ searchInput.addEventListener("input", render);
 shinyFilter.addEventListener("change", render);
 sortSelect.addEventListener("change", render);
 gameFilter.addEventListener("change", render);
+document.querySelector("#exportButton").addEventListener("click", exportCollection);
 document.querySelector("#resetFiltersButton").addEventListener("click", () => {
   searchInput.value = "";
   shinyFilter.checked = false;
@@ -173,7 +210,7 @@ form.addEventListener("submit", event => {
     id: id || Date.now(),
     name: document.querySelector("#pokemonName").value.trim(),
     dex: Number(document.querySelector("#pokedexNumber").value),
-    game: document.querySelector("#game").value.trim(),
+    game: gameNames().get(gameKey(document.querySelector("#game").value)) || document.querySelector("#game").value.trim().replace(/\s+/g, " "),
     level,
     nickname: document.querySelector("#nickname").value.trim(),
     nature: document.querySelector("#nature").value.trim(),

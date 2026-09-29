@@ -77,7 +77,10 @@
       <button class="reset-button" id="resetFiltersButton" type="button">Reset filters</button>
     </section>
 
-    <p id="resultMessage" class="result-message" aria-live="polite">3 entries shown</p>
+    <div class="results-row">
+      <p id="resultMessage" class="result-message" aria-live="polite">3 entries shown</p>
+      <button id="exportButton" class="export-button" type="button">Export collection as CSV</button>
+    </div>
     <section id="cardGrid" class="card-grid" aria-label="Pokémon collection">
       <article class="pokemon-card">
         <div class="card-top"><div><h2>Charizard</h2><span class="dex-number">#006</span></div><span class="shiny-badge">★ SHINY</span></div>
