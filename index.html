@@ -20,6 +20,22 @@
   </header>
 
   <main id="collection" class="page-shell">
+
+    <section class="account-panel" aria-label="Account">
+      <h2>Save your collection online</h2>
+      <p id="accountStatus" role="status">Sign in or create an account to access your saved Pokémon.</p>
+      <form id="authForm" class="auth-form">
+        <label>Email <input id="authEmail" type="email" autocomplete="email" required></label>
+        <label>Password <input id="authPassword" type="password" minlength="8" autocomplete="current-password" required></label>
+        <button class="primary-button" type="submit">Sign in</button>
+        <button class="secondary-button" id="signupButton" type="button">Create account</button>
+      </form>
+      <div id="accountActions" hidden>
+        <button class="secondary-button" id="importButton" type="button" hidden>Import this browser's old collection</button>
+        <button class="secondary-button" id="signoutButton" type="button">Sign out</button>
+      </div>
+      <p id="accountError" class="form-error" role="alert"></p>
+    </section>
     <section class="page-heading">
       <div>
         <p class="eyebrow">MY COLLECTION</p>
@@ -151,6 +167,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
 </html>
