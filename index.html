@@ -30,6 +30,14 @@
         <button class="primary-button" type="submit">Sign in</button>
         <button class="secondary-button" id="signupButton" type="button">Create account</button>
       </form>
+      <div id="recoveryActions">
+        <button class="secondary-button" id="resetPasswordButton" type="button">Forgot password?</button>
+      </div>
+      <form id="recoveryForm" class="auth-form" hidden>
+        <label>New password <input id="newPassword" type="password" minlength="8" autocomplete="new-password" required></label>
+        <label>Confirm new password <input id="confirmPassword" type="password" minlength="8" autocomplete="new-password" required></label>
+        <button class="primary-button" type="submit">Save new password</button>
+      </form>
       <div id="accountActions" hidden>
         <button class="secondary-button" id="importButton" type="button" hidden>Import this browser's old collection</button>
         <button class="secondary-button" id="signoutButton" type="button">Sign out</button>
