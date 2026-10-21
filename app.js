@@ -10,6 +10,8 @@ const db = window.supabase?.createClient(
   "https://bkfuovzhapmbmiwvuckt.supabase.co",
   "sb_publishable_c3DwRJ2z0OfcucMg8B60pg_O9CFYmJ0"
 );
+let recovering = false;
+let authBusy = false;
 let collection = [];
 let currentUser = null;
 let ready = false;
@@ -55,7 +57,9 @@ async function refreshCollection(user) {
   collection = [];
   pokemonDialog.close(); deleteDialog.close();
   render();
-  document.querySelector("#authForm").hidden = !!user;
+  document.querySelector("#authForm").hidden = !!user || recovering;
+  document.querySelector("#recoveryActions").hidden = !!user || recovering;
+  document.querySelector("#recoveryForm").hidden = !recovering;
   document.querySelector("#accountActions").hidden = !user;
   document.querySelector("#importButton").hidden = true;
   document.querySelector("#accountStatus").textContent = user
@@ -63,12 +67,12 @@ async function refreshCollection(user) {
   if (!user) return;
   const { data, error } = await db.from("pokemon").select("*").order("created_at", { ascending: false });
   if (generation !== loadGeneration) return;
-  if (error) { setError(error.message); return; }
+  if (error) { setError("Could not load your collection. Check your connection and refresh to try again."); return; }
   collection = data.map(fromRow);
   ready = true;
   document.querySelector("#accountStatus").textContent = `Signed in as ${user.email}. Collection saved online.`;
   document.querySelector("#importButton").hidden = collection.length !== 0 || loadCollection().length === 0;
-  setError(""); render();
+  if (!recovering) setError(""); render();
 }
 
 function escapeHtml(value) {
@@ -293,7 +297,8 @@ document.querySelector("#confirmDeleteButton").addEventListener("click", async (
 
 async function authenticate(signup) {
   const authForm = document.querySelector("#authForm");
-  if (busy || !db || !authForm.reportValidity()) return;
+  if (busy || authBusy || !db || !authForm.reportValidity()) return;
+  authBusy = true;
   busy = true;
   authForm.querySelectorAll("button").forEach(b => b.disabled = true);
   setError("");
@@ -303,8 +308,8 @@ async function authenticate(signup) {
     if (error) throw error;
     document.querySelector("#authPassword").value = "";
     if (signup && !data.session) document.querySelector("#accountStatus").textContent = "Check your email to confirm your account, then return here and sign in.";
-  } catch (error) { setError(error.message); }
-  finally { busy = false; authForm.querySelectorAll("button").forEach(b => b.disabled = false); render(); }
+  } catch (error) { setError(accountError(error)); }
+  finally { authBusy = false; busy = false; authForm.querySelectorAll("button").forEach(b => b.disabled = false); render(); }
 }
 document.querySelector("#authForm").addEventListener("submit", e => { e.preventDefault(); authenticate(false); });
 document.querySelector("#signupButton").addEventListener("click", () => authenticate(true));
@@ -325,12 +330,82 @@ document.querySelector("#importButton").addEventListener("click", async () => {
   finally { busy = false; button.disabled = false; render(); }
 });
 
+function accountError(error) {
+  const code = error?.code || "";
+  const message = error?.message || "";
+  if (code === "invalid_credentials" || /invalid login credentials/i.test(message)) return "Email or password is incorrect. Try again or use Forgot password.";
+  if (code === "email_not_confirmed") return "Confirm your email using the newest confirmation email, then sign in.";
+  if (/rate_limit|too_many/i.test(code) || error?.status === 429) return "Too many requests. Wait a few minutes before trying again.";
+  if (code === "same_password") return "Choose a password different from your current password.";
+  if (code === "weak_password") return "Choose a stronger password with at least 8 characters.";
+  if (/session|token|otp_expired/i.test(code)) return "This account link has expired or your session ended. Request a new reset email.";
+  if (/fetch|network/i.test(message)) return "Could not connect. Check your internet connection and try again.";
+  return "The account request could not be completed. Please try again.";
+}
+
+document.querySelector("#resetPasswordButton").addEventListener("click", async () => {
+  if (authBusy || busy || !db) return;
+  const emailInput = document.querySelector("#authEmail");
+  if (!emailInput.reportValidity()) return;
+  authBusy = true;
+  const button = document.querySelector("#resetPasswordButton");
+  button.disabled = true;
+  setError("");
+  try {
+    // Supabase uses the project's configured Site URL for the email redirect.
+    const { error } = await db.auth.resetPasswordForEmail(emailInput.value.trim());
+    if (error) throw error;
+    document.querySelector("#accountStatus").textContent = "If an account exists for this email, a reset link has been sent. Check your inbox and spam folder; use the newest link.";
+  } catch (error) { setError(accountError(error)); }
+  finally { authBusy = false; button.disabled = false; }
+});
+
+document.querySelector("#recoveryForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const recoveryForm = document.querySelector("#recoveryForm");
+  if (authBusy || busy || !db || !recovering || !currentUser || !recoveryForm.reportValidity()) return;
+  const password = document.querySelector("#newPassword").value;
+  if (password !== document.querySelector("#confirmPassword").value) {
+    setError("The new passwords do not match."); return;
+  }
+  authBusy = true;
+  const button = recoveryForm.querySelector('[type="submit"]');
+  button.disabled = true;
+  setError("");
+  try {
+    const { error } = await db.auth.updateUser({ password });
+    if (error) throw error;
+    recovering = false;
+    recoveryForm.reset();
+    recoveryForm.hidden = true;
+    document.querySelector("#accountStatus").textContent = "Password updated successfully. You can use your new password the next time you sign in.";
+    showToast("Password updated successfully");
+  } catch (error) { setError(accountError(error)); }
+  finally { authBusy = false; button.disabled = false; }
+});
+
+// Display actionable callback errors without leaving the failed link in the address bar.
+const callbackParams = new URLSearchParams(window.location?.hash?.slice(1) || "");
+const callbackError = callbackParams.has("error");
+if (callbackError) {
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  setError("This email link is invalid or expired. Use the newest email, or request a new password reset link.");
+}
+
 render();
 if (!db) setError("Could not load the database connection. Refresh the page and check your connection.");
 else {
   db.auth.onAuthStateChange((event, session) => {
-    if (["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) {
-      window.setTimeout(() => refreshCollection(session?.user ?? null), 0);
+    if (event === "PASSWORD_RECOVERY") recovering = true;
+    if (event === "SIGNED_OUT") recovering = false;
+    if (["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT", "PASSWORD_RECOVERY"].includes(event)) {
+      window.setTimeout(async () => {
+        try {
+          await refreshCollection(session?.user ?? null);
+          if (recovering) document.querySelector("#accountStatus").textContent = "Choose a new password below (at least 8 characters).";
+          if (callbackError) setError("This email link is invalid or expired. Use the newest email, or request a new password reset link.");
+        } catch (error) { setError(accountError(error)); }
+      }, 0);
     }
   });
 }
