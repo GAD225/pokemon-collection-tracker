@@ -40,8 +40,10 @@
       </form>
       <div id="accountActions" hidden>
         <button class="secondary-button" id="importButton" type="button" hidden>Import this browser's old collection</button>
+        <button class="secondary-button" id="refreshButton" type="button">Refresh collection</button>
         <button class="secondary-button" id="signoutButton" type="button">Sign out</button>
       </div>
+      <p id="syncStatus" class="sync-status" role="status"></p>
       <p id="accountError" class="form-error" role="alert"></p>
     </section>
     <section class="page-heading">
@@ -127,8 +129,8 @@
     </section>
 
     <section id="emptyState" class="empty-state" hidden>
-      <h2>No Pokémon found</h2>
-      <p>Try changing the search or add a new Pokémon to the collection.</p>
+      <h2 id="emptyTitle">Sign in to view your collection</h2>
+      <p id="emptyMessage">Your saved Pokémon will appear after you sign in.</p>
       <button class="primary-button" id="emptyAddButton" type="button">Add Pokémon</button>
     </section>
   </main>
