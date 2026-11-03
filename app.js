@@ -17,6 +17,8 @@ let currentUser = null;
 let ready = false;
 let busy = false;
 let loadGeneration = 0;
+let loading = false;
+let loadFailed = false;
 let pendingDeleteId = null;
 
 const cardGrid = document.querySelector("#cardGrid");
@@ -50,30 +52,63 @@ function toRow(entry) {
 function setError(message) {
   document.querySelector("#accountError").textContent = message;
 }
+function updateAccountView() {
+  document.querySelector("#authForm").hidden = !!currentUser || recovering;
+  document.querySelector("#recoveryActions").hidden = !!currentUser || recovering;
+  document.querySelector("#recoveryForm").hidden = !recovering;
+  document.querySelector("#accountActions").hidden = !currentUser;
+  document.querySelector("#refreshButton").disabled = loading || busy || authBusy;
+}
 async function refreshCollection(user) {
   const generation = ++loadGeneration;
+  const sameUser = !!user && currentUser?.id === user.id;
   currentUser = user;
-  ready = false;
-  collection = [];
-  pokemonDialog.close(); deleteDialog.close();
-  render();
-  document.querySelector("#authForm").hidden = !!user || recovering;
-  document.querySelector("#recoveryActions").hidden = !!user || recovering;
-  document.querySelector("#recoveryForm").hidden = !recovering;
-  document.querySelector("#accountActions").hidden = !user;
+  loading = !!user;
+  loadFailed = false;
+  if (!sameUser) {
+    ready = false;
+    collection = [];
+    pendingDeleteId = null;
+    pokemonDialog.close(); deleteDialog.close();
+    searchInput.value = ""; shinyFilter.checked = false;
+    gameFilter.value = ""; sortSelect.value = "added";
+  }
+  updateAccountView();
   document.querySelector("#importButton").hidden = true;
+  setError("");
   document.querySelector("#accountStatus").textContent = user
     ? "Loading your collection..." : "Sign in or create an account to access your saved Pokémon.";
+  render();
   if (!user) return;
-  const { data, error } = await db.from("pokemon").select("*").order("created_at", { ascending: false });
-  if (generation !== loadGeneration) return;
-  if (error) { setError("Could not load your collection. Check your connection and refresh to try again."); return; }
-  collection = data.map(fromRow);
-  ready = true;
-  document.querySelector("#accountStatus").textContent = `Signed in as ${user.email}. Collection saved online.`;
-  document.querySelector("#importButton").hidden = collection.length !== 0 || loadCollection().length === 0;
-  if (!recovering) setError(""); render();
+  try {
+    const { data, error } = await db.from("pokemon").select("*").order("created_at", { ascending: false });
+    if (generation !== loadGeneration) return;
+    if (error) throw error;
+    collection = data.map(fromRow);
+    ready = true;
+    document.querySelector("#accountStatus").textContent = recovering
+      ? "Choose a new password below (at least 8 characters)."
+      : `Signed in as ${user.email}. Collection saved online.`;
+    document.querySelector("#importButton").hidden = collection.length !== 0 || loadCollection().length === 0;
+    const now = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+    document.querySelector("#syncStatus").textContent = `Collection refreshed at ${now}.`;
+  } catch (error) {
+    if (generation !== loadGeneration) return;
+    loadFailed = true;
+    document.querySelector("#accountStatus").textContent = "Your collection could not be refreshed.";
+    document.querySelector("#syncStatus").textContent = ready ? "Showing the last loaded collection." : "Collection has not loaded yet.";
+    setError("Check your connection, then select Refresh collection to try again.");
+  } finally {
+    if (generation === loadGeneration) {
+      loading = false;
+      updateAccountView(); render();
+    }
+  }
 }
+
+document.querySelector("#refreshButton").addEventListener("click", () => {
+  if (currentUser && !loading && !busy && !authBusy) return refreshCollection(currentUser);
+});
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
@@ -117,8 +152,9 @@ function updateInsights() {
 }
 
 function render() {
-  document.querySelectorAll("#openAddButton, #openAddButtonTop, #emptyAddButton").forEach(button => button.disabled = !ready || busy);
+  document.querySelectorAll("#openAddButton, #openAddButtonTop, #emptyAddButton").forEach(button => button.disabled = !ready || busy || loading || authBusy);
 
+  updateAccountView();
   updateGameOptions();
   const query = searchInput.value.trim().toLowerCase();
   const shinyOnly = shinyFilter.checked;
@@ -161,10 +197,14 @@ function render() {
 
   cardGrid.hidden = results.length === 0;
   emptyState.hidden = results.length !== 0;
+  document.querySelector("#emptyTitle").textContent = !currentUser ? "Sign in to view your collection" : loading ? "Loading your collection..." : loadFailed && !ready ? "Collection unavailable" : collection.length ? "No Pokémon match your filters" : "Your collection is empty";
+  document.querySelector("#emptyMessage").textContent = !currentUser ? "Your saved Pokémon will appear after you sign in." : loading ? "Fetching your saved Pokémon from Supabase." : loadFailed && !ready ? "Select Refresh collection above to try again." : collection.length ? "Try another search or select Reset filters." : "Add your first Pokémon to start your collection.";
+  document.querySelector("#emptyAddButton").hidden = !ready || collection.length > 0;
+  document.querySelector("#resultMessage").textContent = !currentUser ? "Signed out" : loading ? "Refreshing collection..." : !ready ? "Collection unavailable" : `${results.length} ${results.length === 1 ? "entry" : "entries"} shown`;
 }
 
 function openForm(pokemon = null) {
-  if (!ready || busy) return;
+  if (!ready || busy || loading || authBusy) return;
   form.reset();
   document.querySelector("#formError").textContent = "";
   document.querySelector("#pokemonId").value = pokemon?.id ?? "";
@@ -230,7 +270,7 @@ document.querySelector("#resetFiltersButton").addEventListener("click", () => {
 
 cardGrid.addEventListener("click", event => {
   const button = event.target.closest("button[data-action]");
-  if (!button || !ready || busy) return;
+  if (!button || !ready || busy || loading || authBusy) return;
   const id = button.dataset.id;
   const pokemon = collection.find(item => item.id === id);
   if (!pokemon) return;
@@ -244,11 +284,16 @@ cardGrid.addEventListener("click", event => {
 
 form.addEventListener("submit", async event => {
   event.preventDefault();
-  if (!ready || busy || !form.reportValidity()) return;
+  if (!ready || busy || loading || authBusy || !form.reportValidity()) return;
   const id = document.querySelector("#pokemonId").value;
   const level = Number(document.querySelector("#level").value);
-  if (level < 1 || level > 100) {
-    document.querySelector("#formError").textContent = "Level must be between 1 and 100.";
+  const dex = Number(document.querySelector("#pokedexNumber").value);
+  if (!Number.isInteger(level) || level < 1 || level > 100) {
+    document.querySelector("#formError").textContent = "Level must be a whole number between 1 and 100.";
+    return;
+  }
+  if (!Number.isInteger(dex) || dex < 1 || dex > 2000) {
+    document.querySelector("#formError").textContent = "Pokédex number must be a whole number between 1 and 2000.";
     return;
   }
   const entry = {
@@ -266,6 +311,7 @@ form.addEventListener("submit", async event => {
     document.querySelector("#formError").textContent = "Name and game cannot be blank.";
     return;
   }
+  const generation = loadGeneration;
   busy = true; render();
   const saveButton = form.querySelector('[type="submit"]');
   saveButton.disabled = true;
@@ -273,25 +319,28 @@ form.addEventListener("submit", async event => {
     const result = id
       ? await db.from("pokemon").update(toRow(entry)).eq("id", id).select().single()
       : await db.from("pokemon").insert(toRow(entry)).select().single();
+    if (generation !== loadGeneration) return;
     if (result.error) throw result.error;
     const saved = fromRow(result.data);
     collection = id ? collection.map(item => item.id === id ? saved : item) : [saved, ...collection];
     pokemonDialog.close();
     showToast(id ? "Pokémon updated online" : "Pokémon saved online");
-  } catch (error) { document.querySelector("#formError").textContent = error.message; }
+  } catch (error) { if (generation === loadGeneration) document.querySelector("#formError").textContent = "Could not save this Pokémon. Check your connection and try again."; }
   finally { busy = false; saveButton.disabled = false; render(); }
 });
 
 document.querySelector("#confirmDeleteButton").addEventListener("click", async () => {
-  if (!ready || busy || !pendingDeleteId) return;
+  if (!ready || busy || loading || authBusy || !pendingDeleteId) return;
+  const generation = loadGeneration;
   busy = true; render();
   const button = document.querySelector("#confirmDeleteButton"); button.disabled = true;
   try {
     const { data, error } = await db.from("pokemon").delete().eq("id", pendingDeleteId).select("id").single();
     if (error) throw error;
+    if (generation !== loadGeneration) return;
     collection = collection.filter(item => item.id !== data.id);
     pendingDeleteId = null; deleteDialog.close(); showToast("Pokémon deleted online");
-  } catch (error) { document.querySelector("#deleteMessage").textContent = error.message; }
+  } catch (error) { if (generation === loadGeneration) document.querySelector("#deleteMessage").textContent = "Could not delete this Pokémon. Check your connection and try again."; }
   finally { busy = false; button.disabled = false; render(); }
 });
 
@@ -314,17 +363,27 @@ async function authenticate(signup) {
 document.querySelector("#authForm").addEventListener("submit", e => { e.preventDefault(); authenticate(false); });
 document.querySelector("#signupButton").addEventListener("click", () => authenticate(true));
 document.querySelector("#signoutButton").addEventListener("click", async () => {
-  if (busy) return;
-  const { error } = await db.auth.signOut();
-  if (error) setError(error.message);
+  if (busy || authBusy || !db) return;
+  authBusy = true;
+  const button = document.querySelector("#signoutButton"); button.disabled = true;
+  try {
+    const { error } = await db.auth.signOut();
+    if (error) throw error;
+    recovering = false;
+    document.querySelector("#syncStatus").textContent = "";
+    await refreshCollection(null);
+  } catch (error) { setError(accountError(error)); }
+  finally { authBusy = false; button.disabled = false; render(); }
 });
 document.querySelector("#importButton").addEventListener("click", async () => {
-  if (!ready || busy || collection.length) return;
+  if (!ready || busy || loading || authBusy || collection.length) return;
+  const generation = loadGeneration;
   busy = true; const button = document.querySelector("#importButton"); button.disabled = true;
   try {
     const entries = loadCollection().map(toRow);
     const { data, error } = await db.from("pokemon").insert(entries).select();
     if (error) throw error;
+    if (generation !== loadGeneration) return;
     collection = data.map(fromRow); button.hidden = true; showToast("Collection imported online");
   } catch (error) { setError(error.message); }
   finally { busy = false; button.disabled = false; render(); }
@@ -396,6 +455,8 @@ render();
 if (!db) setError("Could not load the database connection. Refresh the page and check your connection.");
 else {
   db.auth.onAuthStateChange((event, session) => {
+    // Supabase can emit SIGNED_IN again when a browser tab regains focus.
+    if (event === "SIGNED_IN" && session?.user?.id === currentUser?.id && ready) return;
     if (event === "PASSWORD_RECOVERY") recovering = true;
     if (event === "SIGNED_OUT") recovering = false;
     if (["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT", "PASSWORD_RECOVERY"].includes(event)) {

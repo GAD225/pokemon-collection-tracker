@@ -153,3 +153,10 @@ button:disabled { opacity:.55; cursor:not-allowed; }
 
 #recoveryActions { margin-top: 12px; }
 #recoveryForm { margin: 16px 0; }
+
+/* Week 8: keep long saved values and account controls usable on narrow screens. */
+.pokemon-card h2, .card-note, #accountStatus, .brand { overflow-wrap: anywhere; }
+#accountActions { display: flex; flex-wrap: wrap; gap: 10px; }
+.sync-status { margin: 12px 0 0; color: var(--muted); font-size: .88rem; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #8aaddd; outline-offset: 3px; }
+@media(max-width:600px) { #accountActions button { width: 100%; } }
